@@ -408,6 +408,21 @@ public class ChatHtmlConverter {
                         .bubble strong { font-weight: 700; }
                         .assistant .bubble strong { color: #111; }
 
+                        .chat-image {
+                            display: block;
+                            max-width: 100%;
+                            height: auto;
+                            border-radius: 8px;
+                        }
+
+                        .image-placeholder {
+                            display: block;
+                            padding: 12px;
+                            border: 1px dashed currentColor;
+                            border-radius: 8px;
+                            overflow-wrap: anywhere;
+                        }
+
                         .user .bubble strong {
                             color: #fff;
                             text-decoration: underline;
@@ -532,6 +547,17 @@ public class ChatHtmlConverter {
                 continue;
             }
 
+            ImageAttachment image = parseImageAttachment(trimmed);
+            if (image != null) {
+                appendNormalText(html, normalText);
+                html.append("<p class=\"image-block\"><span class=\"image-placeholder\" data-attachment-id=\"")
+                        .append(image.id())
+                        .append("\">画像: ")
+                        .append(escapeHtml(image.alt()))
+                        .append("（画像ファイルを選択してください）</span></p>");
+                continue;
+            }
+
             int headingLevel = getHeadingLevel(trimmed);
 
             if (headingLevel > 0) {
@@ -560,6 +586,37 @@ public class ChatHtmlConverter {
 
         appendNormalText(html, normalText);
         return html.toString();
+    }
+
+    // Only local attachment markers on their own line are recognized. Images are
+    // embedded by the browser after conversion; the server never fetches a URL.
+    private static ImageAttachment parseImageAttachment(String line) {
+        if (!line.startsWith("![") || !line.endsWith(")")) return null;
+        StringBuilder alt = new StringBuilder();
+        int index = 2;
+        for (; index < line.length(); index++) {
+            char current = line.charAt(index);
+            if (current == '\\' && index + 1 < line.length()) {
+                char next = line.charAt(index + 1);
+                if (next == '\\' || next == '[' || next == ']') {
+                    alt.append(next);
+                    index++;
+                    continue;
+                }
+            }
+            if (current == ']') break;
+            alt.append(current);
+        }
+        String prefix = "](attachment:";
+        if (!line.startsWith(prefix, index)) return null;
+        String id = line.substring(index + prefix.length(), line.length() - 1);
+        if (id.isEmpty() || id.length() > 80) return null;
+        for (int i = 0; i < id.length(); i++) {
+            char current = id.charAt(i);
+            if (!(current >= 'a' && current <= 'z') && !(current >= 'A' && current <= 'Z')
+                    && !(current >= '0' && current <= '9') && current != '-') return null;
+        }
+        return new ImageAttachment(id, alt.toString());
     }
 
     private static int getHeadingLevel(String line) {
@@ -858,5 +915,8 @@ public class ChatHtmlConverter {
     }
 
     private record Message(String role, String content) {
+    }
+
+    private record ImageAttachment(String id, String alt) {
     }
 }

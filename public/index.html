@@ -16,6 +16,10 @@
         <label class="upload" for="file"><span class="upload-icon">↑</span><strong>テキストファイルを選択</strong><span>UTF-8の .txt / .md · 最大2 MiB</span><input id="file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>
         <div class="editor-label"><label for="source">または、ここに貼り付け</label><span id="count">0 文字</span></div>
         <textarea id="source" spellcheck="false" placeholder="User:&#10;こんにちは！&#10;&#10;Assistant:&#10;こんにちは。何をお手伝いしましょうか？"></textarea>
+        <div class="image-toolbar"><button id="add-image" class="image-button" type="button">＋ 画像を挿入</button><span id="image-count"></span><input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden></div>
+        <p class="image-help">本文の入れたい位置をクリックして画像を選択。画像の貼り付けもできます。<br>PNG / JPEG / GIF / WebP · 1枚10 MiB、合計20 MiB、20枚まで</p>
+        <ul id="image-list" class="image-list" aria-label="追加した画像" hidden></ul>
+        <p id="image-status" class="image-status" role="status" aria-live="polite">画像はこのブラウザ内で処理し、保存するHTMLに埋め込みます。</p>
         <details><summary>対応するログの形式</summary><p>ChatGPT・Codexの回答やMarkdownをそのまま貼り付けられます。会話を分ける場合は <code>User:</code> と <code>Assistant:</code> をそれぞれ単独の行に書いてください。</p><p>「あなた:」「自分:」「ChatGPT:」「AI:」も使えます。見出し・太字・表・インラインコード・コードブロックに対応しています。表は見出し行の次に <code>|---|---|</code> のような区切り行を入れてください。JSON / ZIPのエクスポートには対応していません。</p></details>
         <button id="convert" class="primary" type="button">HTMLに変換 <span>→</span></button>
         <p id="status" class="status" role="status" aria-live="polite">ログを入力して、変換ボタンを押してください。</p>
@@ -25,7 +29,7 @@
         <div class="download-area"><button id="download" type="button" class="download" disabled>↓ HTMLをダウンロード</button><p>保存したHTMLは、ブラウザでそのまま開けます。</p></div>
       </section>
     </div>
-    <footer><span class="privacy-dot"></span>ログは変換のためサーバーに送信されます。アプリはログをファイルやデータベースに保存しません。</footer>
+    <footer><span class="privacy-dot"></span>ログと画像のファイル名は変換のためサーバーに送信されます。画像本体は送信されません。アプリはログを保存しません。</footer>
   </main>
 </body>
 </html>

@@ -65,6 +65,21 @@ public class ConverterTest {
         require(!ChatHtmlConverter.convert("| A | B |\n|---|--|\n| x | y |").contains("<table>"), "invalid separator stays text");
         require(!ChatHtmlConverter.convert("| A | B |\n|---|---|---|\n| x | y |").contains("<table>"), "mismatched header separator stays text");
 
+        String imageMarkdown = "User:\n前の説明\n![図\\[1\\] <script> & \\\\](attachment:img-abc123)\n後の説明\n"
+                + "Assistant:\n| 項目 | 値 |\n|---|---|\n| A | B |\n\n![図2](attachment:img-def456)";
+        String images = ChatHtmlConverter.convert(imageMarkdown);
+        require(images.contains("<p>前の説明</p><p class=\"image-block\"><span class=\"image-placeholder\" data-attachment-id=\"img-abc123\">画像: 図[1] &lt;script&gt; &amp; \\"), "standalone attachment with escaped filename");
+        require(images.contains("</span></p><p>後の説明</p>"), "image preserves surrounding paragraphs");
+        require(occurrences(images, "data-attachment-id=") == 2 && occurrences(images, "<table>") == 1, "images coexist with roles and tables");
+        require(!images.contains("<script>") && !images.contains("<img"), "server only outputs safe attachment placeholders");
+        String imageCode = ChatHtmlConverter.convert("```markdown\n![図](attachment:img-code)\n```\n\n`![図](attachment:img-inline)`");
+        require(!imageCode.contains("data-attachment-id="), "attachment syntax in code stays literal");
+        for (String unsafe : new String[]{"![図](https://example.com/image.png)", "![図](javascript:alert(1))",
+                "![図](attachment:bad\" onload=\"alert)", "![図](attachment:)",
+                "![図](attachment:" + "a".repeat(81) + ")", "![図](attachment:img-good) trailing text"}) {
+            require(!ChatHtmlConverter.convert(unsafe).contains("data-attachment-id="), "unsupported or unsafe image reference remains text");
+        }
+
         for (String invalid : new String[]{"", " \n\t", "User:\n\nAssistant:"}) {
             boolean rejected = false;
             try { ChatHtmlConverter.convert(invalid); }
