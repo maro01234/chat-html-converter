@@ -3,7 +3,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * chat.txtの会話を、チャット風のchat.htmlへ変換します。
@@ -12,6 +14,7 @@ import java.util.List;
  *   # ～ ######        見出し
  *   **文字**          太字
  *   `文字`            インラインコード
+ *   | 列 | 列 |       Markdown表
  *   ```               コードブロック
  */
 public class ChatHtmlConverter {
@@ -19,7 +22,7 @@ public class ChatHtmlConverter {
     public static String convert(String source) {
         List<Message> messages = parseMessages(source.replaceFirst("^\\uFEFF", ""));
         if (messages.isEmpty()) {
-            throw new IllegalArgumentException("会話が見つかりません。User: と Assistant: をそれぞれ単独の行に書いてください。");
+            throw new IllegalArgumentException("変換する本文がありません。会話ログまたはMarkdownを入力してください。");
         }
         return createHtml(messages);
     }
@@ -40,20 +43,14 @@ public class ChatHtmlConverter {
             }
 
             String source = Files.readString(inputFile, StandardCharsets.UTF_8);
-            List<Message> messages = parseMessages(source);
-
-            if (messages.isEmpty()) {
-                System.err.println("会話データが見つかりませんでした。");
-                System.err.println("chat.txtにUser:とAssistant:を記述してください。");
-                return;
-            }
-
-            String html = createHtml(messages);
+            String html = convert(source);
             Files.writeString(outputFile, html, StandardCharsets.UTF_8);
 
             System.out.println("HTMLを作成しました。");
             System.out.println(outputFile.toAbsolutePath());
 
+        } catch (IllegalArgumentException e) {
+            System.err.println(e.getMessage());
         } catch (IOException e) {
             System.err.println("ファイル処理中にエラーが発生しました。");
             e.printStackTrace();
@@ -86,13 +83,16 @@ public class ChatHtmlConverter {
                     currentText.append("\n");
                 }
                 currentText.append(line);
-                if (trimmed.startsWith("```")) {
-                    inCodeBlock = !inCodeBlock;
-                }
+            }
+            if (trimmed.startsWith("```")) {
+                inCodeBlock = !inCodeBlock;
             }
         }
 
         addMessage(messages, currentRole, currentText);
+        if (currentRole == null && !source.isBlank()) {
+            messages.add(new Message("assistant", source.strip()));
+        }
         return messages;
     }
 
@@ -207,6 +207,7 @@ public class ChatHtmlConverter {
                             display: flex;
                             align-items: flex-start;
                             max-width: 78%;
+                            min-width: 0;
                             gap: 10px;
                         }
 
@@ -311,6 +312,39 @@ public class ChatHtmlConverter {
 
                         .bubble p { margin: 0 0 12px; }
                         .bubble p:last-child { margin-bottom: 0; }
+
+                        .table-scroll {
+                            max-width: 100%;
+                            overflow-x: auto;
+                            margin: 16px 0;
+                            border: 1px solid #dce2e8;
+                            border-radius: 8px;
+                            background: white;
+                            color: #222;
+                        }
+                        .table-scroll table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 0.95em;
+                        }
+                        .table-scroll th, .table-scroll td {
+                            padding: 10px 14px;
+                            border-bottom: 1px solid #dce2e8;
+                            text-align: left;
+                            vertical-align: top;
+                            min-width: 100px;
+                        }
+                        .table-scroll th { background: #f3f5f7; font-weight: 700; }
+                        .table-scroll tbody tr:last-child td { border-bottom: 0; }
+                        .table-scroll .align-left { text-align: left; }
+                        .table-scroll .align-center { text-align: center; }
+                        .table-scroll .align-right { text-align: right; }
+                        .table-scroll .inline-code {
+                            white-space: normal;
+                            overflow-wrap: anywhere;
+                        }
+                        .user .bubble .table-scroll .inline-code { background: #eef0f3; color: #c7254e; }
+                        .user .bubble .table-scroll strong { color: #111; text-decoration: none; }
 
                         .bubble h1 {
                             margin: 22px 0 12px;
@@ -546,30 +580,142 @@ public class ChatHtmlConverter {
             return;
         }
 
-        String[] paragraphs = normalText.toString().split("\\n\\s*\\n");
+        String[] lines = normalText.toString().split("\\n", -1);
+        StringBuilder paragraph = new StringBuilder();
 
-        for (String paragraph : paragraphs) {
-            String trimmed = paragraph.strip();
-
-            if (trimmed.isEmpty()) {
+        for (int index = 0; index < lines.length;) {
+            if (index + 1 < lines.length && isMarkdownTableStart(lines[index], lines[index + 1])) {
+                appendParagraph(html, paragraph);
+                index = appendMarkdownTable(html, lines, index);
                 continue;
             }
 
-            html.append("<p>");
-            String[] paragraphLines = trimmed.split("\\n", -1);
-
-            for (int i = 0; i < paragraphLines.length; i++) {
-                html.append(formatInlineMarkdown(paragraphLines[i]));
-
-                if (i < paragraphLines.length - 1) {
-                    html.append("<br>\n");
+            if (lines[index].isBlank()) {
+                appendParagraph(html, paragraph);
+            } else {
+                if (!paragraph.isEmpty()) {
+                    paragraph.append("\n");
                 }
+                paragraph.append(lines[index]);
             }
-
-            html.append("</p>");
+            index++;
         }
 
+        appendParagraph(html, paragraph);
+
         normalText.setLength(0);
+    }
+
+    private static void appendParagraph(StringBuilder html, StringBuilder paragraph) {
+        String trimmed = paragraph.toString().strip();
+        if (trimmed.isEmpty()) {
+            paragraph.setLength(0);
+            return;
+        }
+
+        html.append("<p>");
+        String[] lines = trimmed.split("\\n", -1);
+        for (int index = 0; index < lines.length; index++) {
+            html.append(formatInlineMarkdown(lines[index]));
+            if (index < lines.length - 1) {
+                html.append("<br>\n");
+            }
+        }
+        html.append("</p>");
+        paragraph.setLength(0);
+    }
+
+    private static boolean isMarkdownTableStart(String headerLine, String separatorLine) {
+        List<String> header = parseTableRow(headerLine);
+        List<String> separator = parseTableRow(separatorLine);
+        if (header == null || separator == null || header.size() != separator.size()) {
+            return false;
+        }
+        return separator.stream().allMatch(cell -> cell.matches(":?-{3,}:?"));
+    }
+
+    private static int appendMarkdownTable(StringBuilder html, String[] lines, int start) {
+        List<String> header = parseTableRow(lines[start]);
+        List<String> separator = parseTableRow(lines[start + 1]);
+        html.append("<div class=\"table-scroll\"><table><thead><tr>");
+        for (int column = 0; column < header.size(); column++) {
+            appendTableCell(html, "th", header.get(column), separator.get(column));
+        }
+        html.append("</tr></thead><tbody>");
+        int index = start + 2;
+        while (index < lines.length && !lines[index].isBlank()) {
+            List<String> row = parseTableRow(lines[index]);
+            if (row == null || (index + 1 < lines.length
+                    && isMarkdownTableStart(lines[index], lines[index + 1]))) {
+                break;
+            }
+            html.append("<tr>");
+            for (int column = 0; column < header.size(); column++) {
+                appendTableCell(html, "td", column < row.size() ? row.get(column) : "", separator.get(column));
+            }
+            html.append("</tr>");
+            index++;
+        }
+        html.append("</tbody></table></div>");
+        return index;
+    }
+
+    private static void appendTableCell(StringBuilder html, String tag, String text, String separator) {
+        html.append('<').append(tag);
+        if (tag.equals("th")) html.append(" scope=\"col\"");
+        String alignment = separator.endsWith(":")
+                ? (separator.startsWith(":") ? "center" : "right")
+                : (separator.startsWith(":") ? "left" : "");
+        if (!alignment.isEmpty()) html.append(" class=\"align-").append(alignment).append('"');
+        html.append('>').append(formatInlineMarkdown(text)).append("</").append(tag).append('>');
+    }
+
+    private static List<String> parseTableRow(String line) {
+        String value = line.strip();
+        // A backtick is literal unless a closing run of equal length follows it.
+        Map<Integer, Integer> lastTickRun = new HashMap<>();
+        for (int index = 0; index < value.length(); index++) {
+            if (value.charAt(index) != '`') continue;
+            int end = index + 1;
+            while (end < value.length() && value.charAt(end) == '`') end++;
+            lastTickRun.put(end - index, index);
+            index = end - 1;
+        }
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        int codeTicks = 0;
+        boolean hasSeparator = false;
+        boolean leadingSeparator = false;
+        boolean trailingSeparator = false;
+        for (int index = 0; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current == '\\' && index + 1 < value.length()
+                    && (value.charAt(index + 1) == '|' || value.charAt(index + 1) == '\\')) {
+                if (codeTicks > 0 && value.charAt(index + 1) == '\\') cell.append('\\');
+                cell.append(value.charAt(++index));
+            } else if (current == '`') {
+                int end = index + 1;
+                while (end < value.length() && value.charAt(end) == '`') end++;
+                int ticks = end - index;
+                if (codeTicks == 0 && lastTickRun.get(ticks) > index) codeTicks = ticks;
+                else if (codeTicks == ticks) codeTicks = 0;
+                cell.append(value, index, end);
+                index = end - 1;
+            } else if (current == '|' && codeTicks == 0) {
+                hasSeparator = true;
+                if (index == 0) leadingSeparator = true;
+                if (index == value.length() - 1) trailingSeparator = true;
+                cells.add(cell.toString().strip());
+                cell.setLength(0);
+            } else {
+                cell.append(current);
+            }
+        }
+        if (!hasSeparator) return null;
+        cells.add(cell.toString().strip());
+        if (trailingSeparator) cells.remove(cells.size() - 1);
+        if (leadingSeparator) cells.remove(0);
+        return cells.isEmpty() ? null : cells;
     }
 
     private static void appendCodeBlock(

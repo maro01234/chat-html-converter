@@ -16,7 +16,7 @@
         <label class="upload" for="file"><span class="upload-icon">↑</span><strong>テキストファイルを選択</strong><span>UTF-8の .txt / .md · 最大2 MiB</span><input id="file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>
         <div class="editor-label"><label for="source">または、ここに貼り付け</label><span id="count">0 文字</span></div>
         <textarea id="source" spellcheck="false" placeholder="User:&#10;こんにちは！&#10;&#10;Assistant:&#10;こんにちは。何をお手伝いしましょうか？"></textarea>
-        <details><summary>対応するログの形式</summary><p><code>User:</code> と <code>Assistant:</code> をそれぞれ単独の行に書き、その次の行から本文を入力してください。</p><p>「あなた:」「自分:」「ChatGPT:」「AI:」も使えます。見出し・太字・インラインコード・コードブロックに対応しています。JSON / ZIPのエクスポートには対応していません。</p></details>
+        <details><summary>対応するログの形式</summary><p>ChatGPT・Codexの回答やMarkdownをそのまま貼り付けられます。会話を分ける場合は <code>User:</code> と <code>Assistant:</code> をそれぞれ単独の行に書いてください。</p><p>「あなた:」「自分:」「ChatGPT:」「AI:」も使えます。見出し・太字・表・インラインコード・コードブロックに対応しています。表は見出し行の次に <code>|---|---|</code> のような区切り行を入れてください。JSON / ZIPのエクスポートには対応していません。</p></details>
         <button id="convert" class="primary" type="button">HTMLに変換 <span>→</span></button>
         <p id="status" class="status" role="status" aria-live="polite">ログを入力して、変換ボタンを押してください。</p>
       </section>
